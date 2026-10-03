@@ -23,8 +23,8 @@ plus the release tool (`scripts/release_macos.py`). Import with
 ## Release tool
 
 ```sh
-python3 scripts/release_macos.py build 1.2.3 --notary-profile <keychain-profile>   # signs, notarizes, packages; publishes nothing
-python3 scripts/release_macos.py publish dist/1.2.3                                  # GitHub release via gh
+python3 scripts/release_macos.py build 1.2.3 --notary-profile <keychain-profile>   # signs, notarizes, packages into dist.noindex/<version>; publishes nothing
+python3 scripts/release_macos.py publish dist.noindex/1.2.3                                # GitHub release via gh
 ```
 
 The project's `build.sh release` must honour `HW_UPDATE_VERSION`, `HW_UPDATE_FEED_URL` and
@@ -34,3 +34,5 @@ The project's `build.sh release` must honour `HW_UPDATE_VERSION`, `HW_UPDATE_FEE
 ```sh
 ./test.sh
 ```
+
+The output folder is `dist.noindex` so Spotlight never registers the built copies under the installed app's bundle ID; extra registrations make the Dock show a generic icon. The tool also unregisters the built copies from LaunchServices.

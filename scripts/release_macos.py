@@ -25,6 +25,11 @@ FEED = "update.json"
 SETTINGS = {}
 
 
+# Release output goes in a .noindex folder so Spotlight and LaunchServices never register the
+# built copies under the installed app's bundle ID (which makes the Dock lose its icon).
+DIST = "dist.noindex"
+
+
 def configure(root, app_name, bundle_id, team_id, repo, built_app, artifact_prefix, identity=None):
     """app_name is the .app basename without the suffix; built_app is the path of the
     release bundle the project's build.sh release produces, relative to root."""
@@ -70,6 +75,16 @@ def verify_bundle(app, release_version):
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", "-R", requirement(release_version), app)
 
 
+LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+
+
+def unregister(*apps):
+    """Drop built copies from LaunchServices; the installed app must stay the only registration."""
+    for app in apps:
+        if Path(app).exists():
+            subprocess.run([LSREGISTER, "-u", str(app)], capture_output=True)
+
+
 def clean_worktree():
     if output("git", "-C", SETTINGS["root"], "status", "--porcelain"):
         raise ValueError("Release builds require a clean worktree")
@@ -90,7 +105,7 @@ def build(args):
     version(args.version)
     clean_worktree()
     root = SETTINGS["root"]
-    out = root / "dist" / args.version
+    out = root / DIST / args.version
     if out.exists():
         raise ValueError("Release directory already exists; refusing to overwrite it")
     env = dict(os.environ, HW_UPDATE_VERSION=args.version, HW_UPDATE_FEED_URL=feed_url(), HW_UPDATE_TEAM_ID=SETTINGS["team"])
@@ -118,6 +133,7 @@ def build(args):
     manifest = make_manifest(SETTINGS["bundle_id"], args.version, descriptor(archive, archive.name))
     (out / FEED).write_text(json.dumps(manifest, separators=(",", ":")))
     (out / "release.json").write_text(json.dumps(dict(commit=output("git", "-C", root, "rev-parse", "HEAD")), indent=2))
+    unregister(app, SETTINGS["built"])
     print(f"Prepared {out}: {archive.name} ({manifest['archive']['bytes']} bytes). Nothing published.")
 
 
@@ -184,7 +200,7 @@ def main():
     build_parser = commands.add_parser("build", help="build, sign, notarize and package; publishes nothing")
     build_parser.add_argument("version")
     build_parser.add_argument("--notary-profile", required=True)
-    publish_parser = commands.add_parser("publish", help="publish a prepared dist/<version> as a GitHub release")
+    publish_parser = commands.add_parser("publish", help="publish a prepared dist.noindex/<version> as a GitHub release")
     publish_parser.add_argument("directory", type=Path)
     args = parser.parse_args()
     build(args) if args.command == "build" else publish(args)
