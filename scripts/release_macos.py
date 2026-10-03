@@ -14,6 +14,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -119,9 +121,19 @@ def build(args):
     print(f"Prepared {out}: {archive.name} ({manifest['archive']['bytes']} bytes). Nothing published.")
 
 
-def anonymous(url):
-    with urllib.request.urlopen(urllib.request.Request(url), timeout=120) as response:
-        return response.read()
+def anonymous(url, expected=None, attempts=12):
+    """Fetch without credentials. GitHub's latest/download redirect can lag a new release by
+    seconds, so a mismatch is retried before it counts as a failure."""
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url), timeout=120) as response:
+                data = response.read()
+            if expected is None or expected(data):
+                return data
+        except urllib.error.URLError:
+            pass
+        time.sleep(5)
+    raise ValueError(f"Public verification failed: {url}")
 
 
 def notes(release_version):
@@ -159,11 +171,10 @@ def publish(args):
         "--notes", notes(release_version), "--draft", archive, out / FEED)
     # Publishing is the commit point: latest/download only points at a release once it is public.
     run("gh", "release", "edit", tag, "--repo", repo, "--draft=false", "--latest")
-    if anonymous(feed_url()) != (out / FEED).read_bytes():
-        raise ValueError("Published feed verification failed")
+    published = (out / FEED).read_bytes()
+    anonymous(feed_url(), lambda data: data == published)
     base = f"https://github.com/{repo}/releases/download/{tag}/{archive.name}"
-    if hashlib.sha256(anonymous(base)).hexdigest() != manifest["archive"]["sha256"]:
-        raise ValueError("Anonymous archive verification failed")
+    anonymous(base, lambda data: hashlib.sha256(data).hexdigest() == manifest["archive"]["sha256"])
     print(f"Published {tag}: {feed_url()}")
 
 
