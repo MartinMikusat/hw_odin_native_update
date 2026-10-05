@@ -23,4 +23,11 @@ assert 'identifier "com.example.app"' in release.requirement("1.2.3")
 assert release.feed_url() == "https://github.com/owner/app/releases/latest/download/update.json"
 release.configure("/tmp/x", "tool", "com.example.tool", "ABCDE12345", "owner/tool", "build/tool", "tool", executable=True)
 assert release.SETTINGS["app"] == "tool" and release.SETTINGS["executable"]
+import tempfile, zipfile
+with tempfile.TemporaryDirectory() as temp:
+    tool = Path(temp) / "1.0.0" / "tool"
+    tool.parent.mkdir()
+    tool.write_bytes(b"x")
+    release.archive_app(tool, Path(temp) / "tool.zip")
+    assert zipfile.ZipFile(Path(temp) / "tool.zip").namelist() == ["tool"], "an executable must unpack to its file name"
 print("release tool checks passed")

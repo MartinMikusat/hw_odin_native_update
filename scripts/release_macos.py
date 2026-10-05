@@ -99,7 +99,9 @@ def archive_app(app, destination):
     paths = list(app.rglob("*")) if app.is_dir() else [app]
     if len(paths) > MAX_ENTRIES or sum(p.stat().st_size for p in paths if p.is_file()) > MAX_ARCHIVE_BYTES:
         raise ValueError("Release bundle exceeds the entry or size limit")
-    run("/usr/bin/ditto", "-c", "-k", "--keepParent", app, destination)
+    # --keepParent keeps an .app's own folder but a bare file's containing folder,
+    # so an executable is archived on its own and unpacks to its file name.
+    run("/usr/bin/ditto", "-c", "-k", *([] if app.is_file() else ["--keepParent"]), app, destination)
     if destination.stat().st_size > MAX_ARCHIVE_BYTES:
         raise ValueError("Release exceeds the download limit")
 
