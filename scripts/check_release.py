@@ -23,6 +23,11 @@ assert 'identifier "com.example.app"' in release.requirement("1.2.3")
 assert release.feed_url() == "https://github.com/owner/app/releases/latest/download/update.json"
 release.configure("/tmp/x", "tool", "com.example.tool", "ABCDE12345", "owner/tool", "build/tool", "tool", executable=True)
 assert release.SETTINGS["app"] == "tool" and release.SETTINGS["executable"]
+try:
+    release.configure("/tmp/x", "tool", "com.example.my_tool", "ABCDE12345", "owner/tool", "build/tool", "tool", executable=True)
+    sys.exit("configure accepted a bundle ID the updater rejects")
+except ValueError:
+    pass
 import tempfile, zipfile
 with tempfile.TemporaryDirectory() as temp:
     tool = Path(temp) / "1.0.0" / "tool"

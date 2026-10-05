@@ -37,6 +37,10 @@ def configure(root, app_name, bundle_id, team_id, repo, built_app, artifact_pref
     release must embed an Info.plist carrying HW_UPDATE_VERSION (linker -sectcreate
     __TEXT __info_plist), because the binary has no bundle to stamp. Bare binaries
     are notarized but cannot be stapled."""
+    # The updater accepts only what Apple allows in a bundle ID (letters, digits, '.', '-');
+    # anything else would publish releases no installed copy can ever verify.
+    if not re.fullmatch(r"[A-Za-z0-9.-]{1,160}", bundle_id) or ".." in bundle_id:
+        raise ValueError(f"Invalid bundle ID {bundle_id!r}: use letters, digits, '.' and '-'")
     SETTINGS.update(root=Path(root), app=app_name if executable else f"{app_name}.app", executable=executable,
                     bundle_id=bundle_id, team=team_id, repo=repo,
                     built=Path(root) / built_app, prefix=artifact_prefix,
