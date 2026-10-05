@@ -129,14 +129,15 @@ discard :: proc(prepared: ^Prepared) {
 	if prepared.root != "" {os.remove_all(prepared.root)}
 }
 
-// apply replaces the installed bundle with the verified one: it copies beside the
-// installed app (same volume), verifies the copy again and swaps the two with
-// renamex_np, so the installed app is never half-written. It returns an error
-// message, or "" once the new bundle is in place; the previous bundle is removed.
+// apply replaces the installed bundle (or bare executable) with the verified one:
+// it copies beside the installed path (same volume), verifies the copy again and
+// swaps the two with renamex_np, so the installed copy is never half-written. It
+// returns an error message, or "" once the new copy is in place; the previous one
+// is removed.
 apply :: proc(config: Config, prepared: ^Prepared, installed_app: string) -> string {
 	if prepared.status != .Ready {return "no verified update is ready"}
 	slash := strings.last_index_byte(installed_app, '/')
-	if slash <= 0 || !strings.has_suffix(installed_app, ".app") {return "invalid installed application path"}
+	if slash <= 0 || installed_app[slash+1:] != config.bundle_name {return "invalid installed application path"}
 	root := temporary_directory(installed_app[:slash])
 	if root == "" {return "cannot write beside the installed app"}
 	defer os.remove_all(root)

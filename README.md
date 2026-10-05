@@ -19,6 +19,10 @@ plus the release tool (`scripts/release_macos.py`). Import with
   swaps the verified bundle in beside the installed app with `renamex_np`. The app decides when
   to apply (hw_fileManager applies on quit). The previous bundle is deleted after the swap.
 - Full archives only; there are no binary patches.
+- Command-line tools ship as a bare signed executable (`configure(..., executable=True)`,
+  `Config.bundle_name` = the executable's file name). Its Info.plist is embedded in
+  `__TEXT,__info_plist`, so the same version-pinned requirement applies; it is notarized but
+  not stapled.
 
 ## Release tool
 

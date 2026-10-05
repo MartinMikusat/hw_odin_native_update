@@ -92,3 +92,11 @@ feed_directory_requires_https :: proc(t: ^testing.T) {
 	_, ok = feed_directory("https://update.json")
 	testing.expect(t, !ok)
 }
+
+@(test)
+apply_only_replaces_the_configured_file_name :: proc(t: ^testing.T) {
+	prepared := Prepared{status = .Ready}
+	for path in ([]string{"/Applications/Other.app", "/Users/x/.local/bin/other", "tool"}) {
+		testing.expect_value(t, apply(Config{bundle_name = "tool"}, &prepared, path), "invalid installed application path")
+	}
+}

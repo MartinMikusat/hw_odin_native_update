@@ -11,7 +11,9 @@ READ_BUFFER_BYTES :: 256 * 1024
 
 // Config identifies one application's update feed and the identity a downloaded
 // bundle must carry. feed_url is the HTTPS address of the manifest; the archive
-// is fetched from the same directory.
+// is fetched from the same directory. bundle_name is the file name of what the
+// archive holds and what is installed: "<Name>.app", or a bare executable whose
+// Info.plist is embedded in its __TEXT,__info_plist section.
 Config :: struct {
 	feed_url:    string,
 	bundle_id:   string,

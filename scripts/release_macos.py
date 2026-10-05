@@ -30,10 +30,15 @@ SETTINGS = {}
 DIST = "dist.noindex"
 
 
-def configure(root, app_name, bundle_id, team_id, repo, built_app, artifact_prefix, identity=None):
+def configure(root, app_name, bundle_id, team_id, repo, built_app, artifact_prefix, identity=None, executable=False):
     """app_name is the .app basename without the suffix; built_app is the path of the
-    release bundle the project's build.sh release produces, relative to root."""
-    SETTINGS.update(root=Path(root), app=f"{app_name}.app", bundle_id=bundle_id, team=team_id, repo=repo,
+    release bundle the project's build.sh release produces, relative to root.
+    executable=True ships a bare command-line binary named app_name instead: build.sh
+    release must embed an Info.plist carrying HW_UPDATE_VERSION (linker -sectcreate
+    __TEXT __info_plist), because the binary has no bundle to stamp. Bare binaries
+    are notarized but cannot be stapled."""
+    SETTINGS.update(root=Path(root), app=app_name if executable else f"{app_name}.app", executable=executable,
+                    bundle_id=bundle_id, team=team_id, repo=repo,
                     built=Path(root) / built_app, prefix=artifact_prefix,
                     identity=identity or f"Developer ID Application: Martin Mikusat ({team_id})")
 
@@ -91,7 +96,7 @@ def clean_worktree():
 
 
 def archive_app(app, destination):
-    paths = list(app.rglob("*"))
+    paths = list(app.rglob("*")) if app.is_dir() else [app]
     if len(paths) > MAX_ENTRIES or sum(p.stat().st_size for p in paths if p.is_file()) > MAX_ARCHIVE_BYTES:
         raise ValueError("Release bundle exceeds the entry or size limit")
     run("/usr/bin/ditto", "-c", "-k", "--keepParent", app, destination)
@@ -113,11 +118,12 @@ def build(args):
     out.mkdir(parents=True)
     app = out / SETTINGS["app"]
     run("/usr/bin/ditto", SETTINGS["built"], app)
-    plist = app / "Contents/Info.plist"
-    info = plistlib.loads(plist.read_bytes())
-    info["CFBundleShortVersionString"] = info["CFBundleVersion"] = args.version
-    info["CFBundleIdentifier"] = SETTINGS["bundle_id"]
-    plist.write_bytes(plistlib.dumps(info))
+    if not SETTINGS["executable"]:
+        plist = app / "Contents/Info.plist"
+        info = plistlib.loads(plist.read_bytes())
+        info["CFBundleShortVersionString"] = info["CFBundleVersion"] = args.version
+        info["CFBundleIdentifier"] = SETTINGS["bundle_id"]
+        plist.write_bytes(plistlib.dumps(info))
     run("/usr/bin/codesign", "--force", "--deep", "--options", "runtime", "--timestamp",
         "--identifier", SETTINGS["bundle_id"], "--sign", SETTINGS["identity"], app)
     verify_bundle(app, args.version)
@@ -125,15 +131,17 @@ def build(args):
         submission = Path(temp) / "notarize.zip"
         run("/usr/bin/ditto", "-c", "-k", "--keepParent", app, submission)
         run("/usr/bin/xcrun", "notarytool", "submit", submission, "--keychain-profile", args.notary_profile, "--wait")
-    run("/usr/bin/xcrun", "stapler", "staple", app)
-    run("/usr/bin/xcrun", "stapler", "validate", app)
+    if not SETTINGS["executable"]:
+        run("/usr/bin/xcrun", "stapler", "staple", app)
+        run("/usr/bin/xcrun", "stapler", "validate", app)
     verify_bundle(app, args.version)
     archive = out / f"{SETTINGS['prefix']}-{args.version}.zip"
     archive_app(app, archive)
     manifest = make_manifest(SETTINGS["bundle_id"], args.version, descriptor(archive, archive.name))
     (out / FEED).write_text(json.dumps(manifest, separators=(",", ":")))
     (out / "release.json").write_text(json.dumps(dict(commit=output("git", "-C", root, "rev-parse", "HEAD")), indent=2))
-    unregister(app, SETTINGS["built"])
+    if not SETTINGS["executable"]:
+        unregister(app, SETTINGS["built"])
     print(f"Prepared {out}: {archive.name} ({manifest['archive']['bytes']} bytes). Nothing published.")
 
 
